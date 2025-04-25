@@ -1,0 +1,22 @@
+# Reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml#L32
+seed: 42
+
+n_timesteps: !!float 10000000
+policy: 'MultiInputPolicy'
+batch_size: 256
+buffer_size: 100000
+gamma: 0.99
+use_sde: False
+sde_sample_freq: 64
+learning_rate: !!float 3e-4  # Increased from 1e-6
+policy_kwargs: "dict(
+            activation_fn=nn.ELU,
+            net_arch=dict(pi=[256, 256], qf=[256, 256]),
+            normalize_images=True,
+            )"
+
+# Add these if using SAC:
+ent_coef: 'auto'  # Ensure entropy auto-tuning
+target_update_interval: 2
+tau: 0.005  # Slower target updates
+device: "cuda:0"

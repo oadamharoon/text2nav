@@ -28,7 +28,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
-parser.add_argument("--agent", type=str, default="PPO", help="RL agent.")
+parser.add_argument("--agent", type=str, default="SAC", help="RL agent.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint to resume training.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -86,81 +86,15 @@ elif agent_name in ["RPPO"]:
     agent_cfg_entry_point = "sb3_rppo_cfg_entry_point"
 
 
-import wandb
+# import wandb
 
-run = wandb.init(
-    project= "IsaacLab_Implementation",
-    name= "mybuddy_direct_intel_camera_SAC_v9",
-    sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-    monitor_gym=False,  # auto-upload the videos of agents playing the game
-    save_code=False,  # optional
-)
-
-import torch as th
-from torch import nn
-from torchvision import models
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-# Define a custom feature extractor for the image
-class CustomCombinedExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.spaces.Dict):
-        super().__init__(observation_space, features_dim=1)
-
-        extractors = {}
-        total_concat_size = 0
-
-        for key, subspace in observation_space.spaces.items():
-            if key == "rgb":
-                # Load ResNet and modify its first convolutional layer for 5-channel input
-                resnet = models.resnet18(pretrained=True)
-                
-                # Modify conv1 to accept 5-channel input
-                resnet.conv1 = nn.Conv2d(
-                    in_channels=5,  # Change from 3 to 5
-                    out_channels=64,
-                    kernel_size=7,
-                    stride=2,
-                    padding=3,
-                    bias=False
-                )
-                nn.init.kaiming_normal_(resnet.conv1.weight, mode='fan_out', nonlinearity='relu')
-
-                # Remove the final classification layer, keeping the feature extractor part
-                resnet = nn.Sequential(*list(resnet.children())[:-1])
-                
-                # Freeze ResNet parameters
-                for param in resnet.parameters():
-                    param.requires_grad = False
-
-                extractors[key] = nn.Sequential(
-                    resnet,
-                    nn.Flatten()
-                )
-                # The output size of ResNet18 is 512
-                total_concat_size += 512
-            else:  # key == "joints"
-                # For the vector input, we'll use a simple MLP with 16 output units
-                extractors[key] = nn.Sequential(
-                    nn.Linear(subspace.shape[0], 16),
-                    nn.ReLU()
-                )
-                total_concat_size += 16
-
-        self.extractors = nn.ModuleDict(extractors)
-        self._features_dim = total_concat_size
-
-    def forward(self, observations) -> th.Tensor:
-        encoded_tensor_list = []
-
-        for key, extractor in self.extractors.items():
-            encoded_tensor_list.append(extractor(observations[key]))
-
-        return th.cat(encoded_tensor_list, dim=1)
-
-
-policy_kwargs = dict(activation_fn=th.nn.ELU, 
-                     net_arch=dict(pi=[64, 64], qf=[400, 300]),
-                     features_extractor_class=CustomCombinedExtractor,
-                     normalize_images=True)
+# run = wandb.init(
+#     project= "IsaacLab_Implementation",
+#     name= "mybuddy_direct_intel_camera_SAC_v9",
+#     sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+#     monitor_gym=False,  # auto-upload the videos of agents playing the game
+#     save_code=False,  # optional
+# )
 
 class InfoLoggingCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -273,11 +207,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     checkpoint_callback = CheckpointCallback(save_freq=1500, save_path=log_dir, name_prefix="model", verbose=2)
     # train the agent
     # agent.load_replay_buffer("/home/nitesh/IsaacLab/SAC/logs/sb3/Isaac-MyBuddy-Direct-SAC-v0/2025-03-10_16-22-24/replay_buffer.pkl")
-    agent.learn(total_timesteps=n_timesteps, callback=[checkpoint_callback, WandbCallback(
-        gradient_save_freq=100,
-        model_save_path=f"models/{run.name}",
-        verbose=2,
-    )])
+    agent.learn(total_timesteps=n_timesteps, callback=[checkpoint_callback])
     # save the final model
     agent.save(os.path.join(log_dir, "model"))
     if agent_name == "SAC":

@@ -22,5 +22,6 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.robot_sim:JetbotCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+        "sb3_sac_cfg_entry_point": f"{agents.__name__}:sb3_sac_cfg.yaml",
     },
 )

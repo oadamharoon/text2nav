@@ -223,7 +223,7 @@ class Sb3VecEnvWrapper(VecEnv):
 
     def step_wait(self) -> VecEnvStepReturn:  # noqa: D102
         # record step information
-        obs_dict, rew, terminated, truncated, extras = self.env.step(self._async_actions)
+        obs_dict, rew, cons, terminated, truncated, extras = self.env.step(self._async_actions)
         # update episode un-discounted return and length
         self._ep_rew_buf += rew
         self._ep_len_buf += 1

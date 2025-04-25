@@ -8,12 +8,12 @@ tensorboard
 moviepy
 
 [all]
-rsl-rl@ git+https://github.com/leggedrobotics/rsl_rl.git
-gym
-skrl>=1.3.0
-rl-games==1.6.1
 robomimic@ git+https://github.com/ARISE-Initiative/robomimic.git
+rl-games==1.6.1
 stable-baselines3>=2.1
+skrl>=1.3.0
+rsl-rl-lib@ git+https://github.com/leggedrobotics/rsl_rl.git
+gym
 
 [rl-games]
 rl-games==1.6.1
@@ -27,10 +27,10 @@ gym
 robomimic@ git+https://github.com/ARISE-Initiative/robomimic.git
 
 [rsl-rl]
-rsl-rl@ git+https://github.com/leggedrobotics/rsl_rl.git
+rsl-rl-lib@ git+https://github.com/leggedrobotics/rsl_rl.git
 
 [rsl_rl]
-rsl-rl@ git+https://github.com/leggedrobotics/rsl_rl.git
+rsl-rl-lib@ git+https://github.com/leggedrobotics/rsl_rl.git
 
 [sb3]
 stable-baselines3>=2.1
