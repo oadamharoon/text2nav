@@ -1,0 +1,12 @@
+numpy<2
+torch==2.4.0
+onnx==1.16.1
+prettytable==3.3.0
+toml
+hidapi
+gymnasium
+trimesh
+pyglet<2
+transformers
+einops
+warp-lang
