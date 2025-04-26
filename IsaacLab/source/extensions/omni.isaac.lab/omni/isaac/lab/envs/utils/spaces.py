@@ -44,18 +44,33 @@ def spec_to_gym_space(spec: SpaceType) -> gym.spaces.Space:
         return gym.spaces.Tuple([spec_to_gym_space(x) for x in spec])
     # Dict
     elif isinstance(spec, dict):
-        # desired_dtypes = {
-        #     "joints": np.float16,
-        #     "rgb": np.uint8,
-        #     "ee_position": np.float16
-        # }
-        # updated_spaces = {
-        #     k: gym.spaces.Box(low=v.low, high=v.high, shape=v.shape, dtype=desired_dtypes.get(k, v.dtype))
-        #     for k, v in spec.items()
-        # }
-        # print(f"Spaces of observation space: {updated_spaces}")
-        # return gym.spaces.Dict(updated_spaces)
-        return gym.spaces.Dict({k: spec_to_gym_space(v) for k, v in spec.items()})
+        desired_dtypes = {
+            "rgb": np.uint8,
+            "poses": np.float16,
+            "goal_index": np.int32,
+        }
+
+        updated_spaces = {}
+        for k, v in spec.items():
+            if isinstance(v, gym.spaces.Box):
+                dtype = desired_dtypes.get(k, v.dtype)
+                updated_spaces[k] = gym.spaces.Box(
+                    low=np.array(v.low, dtype=dtype),
+                    high=np.array(v.high, dtype=dtype),
+                    shape=v.shape,
+                    dtype=dtype,
+                )
+            elif isinstance(v, gym.spaces.Discrete):
+                updated_spaces[k] = gym.spaces.Discrete(
+                    n=v.n,
+                    start=v.start
+                )
+            else:
+                raise NotImplementedError(f"Unsupported space type for key '{k}': {type(v)}")
+
+        print("Updated observation spaces:", updated_spaces)
+        return gym.spaces.Dict(updated_spaces)
+
     raise ValueError(f"Unsupported space specification: {spec}")
 
 

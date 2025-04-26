@@ -86,15 +86,15 @@ elif agent_name in ["RPPO"]:
     agent_cfg_entry_point = "sb3_rppo_cfg_entry_point"
 
 
-# import wandb
+import wandb
 
-# run = wandb.init(
-#     project= "IsaacLab_Implementation",
-#     name= "mybuddy_direct_intel_camera_SAC_v9",
-#     sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-#     monitor_gym=False,  # auto-upload the videos of agents playing the game
-#     save_code=False,  # optional
-# )
+run = wandb.init(
+    project= "ME592",
+    name= "jetbot_sb3_v2",
+    sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+    monitor_gym=False,  # auto-upload the videos of agents playing the game
+    save_code=False,  # optional
+)
 
 class InfoLoggingCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -141,7 +141,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     else:
         raise ValueError(f"Unsupported agent: {agent_name}")
     # directory for logging into
-    log_dir = os.path.join(f"/home/nitesh/IsaacLab/{agent_name}", "logs", "sb3", args_cli.task, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    log_dir = os.path.join(f"/home/nitesh/workspace/offline_rl_test/text2nav/IsaacLab/{agent_name}", "logs", "sb3", args_cli.task, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(log_dir, exist_ok=True)
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
@@ -207,7 +207,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     checkpoint_callback = CheckpointCallback(save_freq=1500, save_path=log_dir, name_prefix="model", verbose=2)
     # train the agent
     # agent.load_replay_buffer("/home/nitesh/IsaacLab/SAC/logs/sb3/Isaac-MyBuddy-Direct-SAC-v0/2025-03-10_16-22-24/replay_buffer.pkl")
-    agent.learn(total_timesteps=n_timesteps, callback=[checkpoint_callback])
+    agent.learn(total_timesteps=n_timesteps, callback=[checkpoint_callback, WandbCallback(
+        gradient_save_freq=100,
+        model_save_path=f"models/{run.name}",
+        verbose=2,
+    )])
     # save the final model
     agent.save(os.path.join(log_dir, "model"))
     if agent_name == "SAC":

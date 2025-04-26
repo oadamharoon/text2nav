@@ -13,7 +13,7 @@ import omni
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, ArticulationCfg
 from omni.isaac.lab.actuators.actuator_cfg import ImplicitActuatorCfg
-from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
+from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg
 from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationCfg, PhysxCfg
@@ -21,7 +21,7 @@ from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_
 from omni.isaac.lab.utils import configclass
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core import PhysicsContext
-from omni.isaac.lab.utils.math import sample_uniform, quat_from_euler_xyz
+from omni.isaac.lab.utils.math import sample_uniform
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 
@@ -33,7 +33,7 @@ import numpy as np
 class JetbotCfg(DirectRLEnvCfg):
     # env
     decimation = 1
-    episode_length_s = 10.0
+    episode_length_s = 20.0
     action_scale = 1.0
     state_space = 0
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -58,7 +58,7 @@ class JetbotCfg(DirectRLEnvCfg):
             ".*": ImplicitActuatorCfg(
                 joint_names_expr=[".*"],
                 effort_limit=1000.0,
-                velocity_limit=2.0,
+                velocity_limit=20.0,
                 stiffness=800.0,
                 damping=4.0,
             ),
@@ -83,7 +83,8 @@ class JetbotCfg(DirectRLEnvCfg):
 
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(len(joint_dof_name),))
     observation_space = {"rgb": gym.spaces.Box(low=0, high=255, shape=(tiled_camera.height, tiled_camera.width, 3), dtype=np.uint8), 
-                         "poses": gym.spaces.Box(low=-20.00, high=20.0, shape=(6,), dtype=np.float32)}
+                         "poses": gym.spaces.Box(low=-20.00, high=20.0, shape=(6,), dtype=np.float32),
+                         "goal_index": gym.spaces.Discrete(5)}
     
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=3, replicate_physics=True)
@@ -94,7 +95,7 @@ class JetbotCfg(DirectRLEnvCfg):
     max_y = 1.45
     min_y = -1.45
     max_x = 2.5
-    min_x = -0.5
+    min_x = -0.2
 
     # reward scales
     rew_scale_alive = -0.1
@@ -189,7 +190,6 @@ class JetbotEnv(DirectRLEnv):
         self.raw_actions = actions.clone()
         # print(f"Raw actions: {self.raw_actions}")
         self.actions = torch.clamp(self.raw_actions, -1, 1) * 500 + self._robot.data.joint_pos[:, self._joint_dof_idx]
-        # print(f"Actions: {self.actions}")
 
     def _apply_action(self) -> None:
         self._robot.set_joint_position_target(self.actions, joint_ids=self._joint_dof_idx)
@@ -208,9 +208,8 @@ class JetbotEnv(DirectRLEnv):
 
         poses = torch.cat((self.robot_position, self.goal_cube_position), dim=1)
 
-
         # Observations
-        obs = {"rgb":self.rgb_image.to(dtype=torch.float32), 'poses':poses.to(dtype=torch.float32)}
+        obs = {"rgb":self.rgb_image.to(dtype=torch.float32), 'poses':poses.to(dtype=torch.float32), "goal_index":self.target_idx.to(dtype=torch.int16)}
         observations = {"policy": obs}
         return observations
     
@@ -218,7 +217,7 @@ class JetbotEnv(DirectRLEnv):
     def _get_rewards(self) -> torch.Tensor:
         # Calculate distance to goal
         dist_to_goal = torch.norm(self.robot_position - self.goal_cube_position, dim=1)
-        rew = -dist_to_goal
+        rew = -dist_to_goal * 0.1
         # Compute done conditions (same logic as _get_dones)
         done = torch.logical_or(dist_to_goal > self.cfg.max_distance_to_goal, dist_to_goal < 0.1)
         done = torch.logical_or(done, self.robot_position[:, 0] > self.cfg.max_x)
@@ -268,7 +267,5 @@ class JetbotEnv(DirectRLEnv):
         self.target_idx[env_ids] = torch.randint(low=0,
                                                     high=len(self.targets),
                                                     size=(len(env_ids),),
-                                                    device=self.device
-                                                )
-        print(f"Target index: {self.target_idx}")
+                                                    device=self.device)
 
