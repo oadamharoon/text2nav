@@ -241,6 +241,11 @@ class JetbotEnv(DirectRLEnv):
         done = torch.logical_or(done, self.robot_position[:, 0] < self.cfg.min_x)
         done = torch.logical_or(done, self.robot_position[:, 1] > self.cfg.max_y)
         done = torch.logical_or(done, self.robot_position[:, 1] < self.cfg.min_y)
+        # if both time out and done, set done to true and time out to false
+        done = torch.logical_or(done, time_out)
+        # if both time out and done, set done to true and time out to false
+        time_out = torch.logical_and(done, time_out)
+
         return done, time_out
 
 
