@@ -16,11 +16,22 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Jetbot-Direct-v0",
-    entry_point=f"{__name__}.robot_sim:JetbotEnv",
+    id="Isaac-Jetbot-Direct-Simple-v0",
+    entry_point=f"{__name__}.robot_sim_simple:JetbotEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.robot_sim:JetbotCfg",
+        "env_cfg_entry_point": f"{__name__}.robot_sim_simple:JetbotCfg",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+        "sb3_sac_cfg_entry_point": f"{agents.__name__}:sb3_sac_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Isaac-Jetbot-Direct-Hospital-v0",
+    entry_point=f"{__name__}.robot_sim_hospital:JetbotEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.robot_sim_hospital:JetbotCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
         "sb3_sac_cfg_entry_point": f"{agents.__name__}:sb3_sac_cfg.yaml",
     },
