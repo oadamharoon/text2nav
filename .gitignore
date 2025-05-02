@@ -9,3 +9,4 @@ venv
 *.h5
 *.pkl
 d3rlpy_logs
+embeddings/data
