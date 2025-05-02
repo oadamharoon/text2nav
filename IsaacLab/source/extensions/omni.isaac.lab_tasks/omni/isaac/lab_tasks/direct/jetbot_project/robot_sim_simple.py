@@ -21,7 +21,7 @@ from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_
 from omni.isaac.lab.utils import configclass
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core import PhysicsContext
-from omni.isaac.lab.utils.math import sample_uniform
+from omni.isaac.lab.utils.math import sample_uniform, euler_xyz_from_quat
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 
@@ -122,10 +122,10 @@ class JetbotEnv(DirectRLEnv):
         self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(color=(0.67, 0.84, 0.9)))
-        self.physics_context = PhysicsContext()
-        self.physics_context.set_solver_type("TGS")
-        self.physics_context.set_broadphase_type("GPU")
-        self.physics_context.enable_gpu_dynamics(True)
+        # self.physics_context = PhysicsContext()
+        # self.physics_context.set_solver_type("TGS")
+        # self.physics_context.set_broadphase_type("GPU")
+        # self.physics_context.enable_gpu_dynamics(True)
 
         # add light
         light_cfg = sim_utils.SphereLightCfg(intensity=1200.0, color=(1.0, 1.0, 1.0), radius=1.98)
@@ -150,7 +150,7 @@ class JetbotEnv(DirectRLEnv):
 
 
         self.targets = []
-        diffuse_colors = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 1.0, 0.0), (1.0, 1.0, 1.0)]
+        diffuse_colors = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 1.0, 0.0), (1.0, 0.0, 1.0)]
         init_y_poses = [0.0, 0.5, -0.5, 1.0, -1.0]
         for i in range(5):
             cube_cfg = RigidObjectCfg(
@@ -214,18 +214,57 @@ class JetbotEnv(DirectRLEnv):
         return observations
     
 
+    # def _get_rewards(self) -> torch.Tensor:
+    #     # Calculate distance to goal
+    #     dist_to_goal = torch.norm(self.robot_position - self.goal_cube_position, dim=1)
+    #     robot_heading = self._robot.data.body_com_quat_w
+    #     rew = -dist_to_goal * 0.1
+    #     # Compute done conditions (same logic as _get_dones)
+    #     done = torch.logical_or(dist_to_goal > self.cfg.max_distance_to_goal, dist_to_goal < 0.1)
+    #     done = torch.logical_or(done, self.robot_position[:, 0] > self.cfg.max_x)
+    #     done = torch.logical_or(done, self.robot_position[:, 0] < self.cfg.min_x)
+    #     done = torch.logical_or(done, self.robot_position[:, 1] > self.cfg.max_y)
+    #     done = torch.logical_or(done, self.robot_position[:, 1] < self.cfg.min_y)
+    #     rew[done] = -5
+    #     return rew
+
     def _get_rewards(self) -> torch.Tensor:
+        # Vector from robot to goal
+        to_goal_vec = self.goal_cube_position - self.robot_position
+        to_goal_dir = torch.nn.functional.normalize(to_goal_vec, dim=1)
+
+        # Assume robot_heading is a normalized 2D heading vector (e.g., [cos(theta), sin(theta)])
+        # If it's a quaternion, you'd need to extract the heading direction
+        # print(self._robot.data.body_com_quat_w)
+        robot_heading = get_robot_heading_vector(self._robot.data.root_com_quat_w)  # Implement this if not already available
+
+        # Compute heading alignment: dot product is 1 if perfectly aligned, -1 if opposite
+        heading_alignment = torch.sum(robot_heading * to_goal_dir[:, :2], dim=1)
+
         # Calculate distance to goal
-        dist_to_goal = torch.norm(self.robot_position - self.goal_cube_position, dim=1)
-        rew = -dist_to_goal * 0.1
-        # Compute done conditions (same logic as _get_dones)
+        dist_to_goal = torch.norm(to_goal_vec, dim=1)
+
+        # Distance-based reward
+        dist_rew = -dist_to_goal * 0.1
+
+        # Heading bonus: scaled by alignment (optional weight)
+        heading_bonus = 0.1 * heading_alignment  # Tune weight as needed
+
+        rew = dist_rew + heading_bonus
+
+        # Done conditions
         done = torch.logical_or(dist_to_goal > self.cfg.max_distance_to_goal, dist_to_goal < 0.1)
         done = torch.logical_or(done, self.robot_position[:, 0] > self.cfg.max_x)
         done = torch.logical_or(done, self.robot_position[:, 0] < self.cfg.min_x)
         done = torch.logical_or(done, self.robot_position[:, 1] > self.cfg.max_y)
         done = torch.logical_or(done, self.robot_position[:, 1] < self.cfg.min_y)
+
+        # Apply penalty on done
         rew[done] = -5
+
         return rew
+    
+
 
     def _get_hard_constraints(self) -> torch.Tensor:
         return torch.zeros(self.num_envs, device=self.device)
@@ -273,4 +312,27 @@ class JetbotEnv(DirectRLEnv):
                                                     high=len(self.targets),
                                                     size=(len(env_ids),),
                                                     device=self.device)
+        
 
+@torch.jit.script
+def get_robot_heading_vector(quat) -> torch.Tensor:
+    """
+    Converts robot orientation quaternions to 2D heading vectors (XY plane).
+    Assumes robot faces forward along the local +X axis.
+    """
+    # quat = self._robot.data.body_com_quat_w  # shape (N, 4), assumed format: [w, x, y, z]
+    w, x, y, z = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
+
+    # Compute the robot's forward direction in world space using quaternion rotation
+    # Assuming forward vector in local frame is (1, 0, 0)
+    # Rotated vector: v' = q * v * q_conj
+
+    # Quaternion multiplication for rotating (1, 0, 0) direction
+    # Simplified for local forward [1, 0, 0], the resulting world direction is:
+    forward_x = 1 - 2 * (y ** 2 + z ** 2)
+    forward_y = 2 * (x * y + w * z)
+
+    heading_vec = torch.stack([forward_x, forward_y], dim=1)
+    heading_vec = torch.nn.functional.normalize(heading_vec, dim=1)
+
+    return heading_vec  # shape: (N, 2)
