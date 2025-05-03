@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Compute `tasks_dict` from replay buffer and save it into a new pickle.
-Each task is mapped properly to (episode, step) frame.
+Compute goal-based embeddings from replay buffer and save into a new pickle.
+Embeddings are generated from RGB frames and text tasks matched with goal_index.
 """
 
 import pickle
@@ -17,10 +17,10 @@ from transformers import SiglipProcessor, SiglipModel
 # CONFIG
 # ---------------------------------------------------------------------
 INPUT_PKL  = Path("/work/mech-ai-scratch/shreyang/me592/text2nav/embeddings/data/replay_buffer.pkl")
-OUTPUT_PKL = INPUT_PKL.parent / "replay_buffer_with_tasks.pkl"
+OUTPUT_PKL = INPUT_PKL.parent / "replay_buffer_with_embeddings.pkl"
 
 # ---------------------------------------------------------------------
-# Helper Functionsss
+# Helper Functions
 # ---------------------------------------------------------------------
 def grid_cell(cx, cy, W, H):
     col = "left"   if cx <  W/3 else "centre" if cx < 2*W/3 else "right"
@@ -78,6 +78,35 @@ class SigLIPMatcher:
         joint = self._l2(img_feat + txt_feat)
         return joint.cpu().numpy().copy()
 
+def compute_goal_embeddings(rgb_array, tasks_dict, goal_index, color_index, embedding_size):
+    """
+    Compute embeddings based on tasks matching the goal color for each frame.
+    Returns a numpy array of shape (episodes, steps, embedding_size).
+    """
+    num_episodes, num_steps = rgb_array.shape[0], rgb_array.shape[1]
+    all_embeddings = []
+
+    for batch_id in range(num_episodes):
+        batch_embeddings = []
+        task_batch = tasks_dict[batch_id]
+        goal_batch = goal_index[batch_id]
+
+        for step_id in range(num_steps):
+            task_list = task_batch[step_id]
+            embedding = None
+            if task_list:
+                for task in task_list:
+                    if color_index.get(task.get("colour", None), None) == goal_batch[step_id][0]:
+                        embedding = task.get("embedding", None)
+            if embedding is None:
+                embedding = np.zeros(embedding_size)
+
+            batch_embeddings.append(embedding)
+
+        all_embeddings.append(np.array(batch_embeddings))
+
+    return np.array(all_embeddings)
+
 # ---------------------------------------------------------------------
 # Main Script
 # ---------------------------------------------------------------------
@@ -92,28 +121,31 @@ def main():
         return
 
     rgb = buffer.observations["rgb"]
-    assert rgb.ndim == 5, "Expected (episodes, steps, channels, height, width)"
+    next_rgb = buffer.next_observations.get("rgb", None)
+    goal_index = buffer.observations.get("goal_index", None)
+
+    if rgb is None or next_rgb is None or goal_index is None:
+        print("❌ Missing required data in buffer: rgb, next_rgb or goal_index.")
+        return
 
     num_episodes, num_steps = rgb.shape[0], rgb.shape[1]
     print(f"✅ Loaded buffer with {num_episodes} episodes, {num_steps} steps each.")
 
     matcher = SigLIPMatcher()
-
     tasks_dict = {}
 
     print("🔍 Detecting balls and computing tasks...")
     for ep in tqdm(range(num_episodes), desc="Episodes"):
         tasks_dict[ep] = {}
         for st in range(num_steps):
-            img_np = rgb[ep, st]  # (3, 256, 256)
+            img_np = rgb[ep, st]
             if isinstance(img_np, torch.Tensor):
                 img_np = img_np.cpu().numpy()
-            img_np = img_np.transpose(1, 2, 0).astype(np.uint8)  # (H, W, C)
-
+            img_np = img_np.transpose(1, 2, 0).astype(np.uint8)
             if img_np.shape[-1] == 4:
                 img_np = img_np[..., :3]
 
-            drawn_img, detections = detect_balls(img_np)
+            _, detections = detect_balls(img_np)
 
             task_list = []
             for colour, bbox, loc in detections:
@@ -127,8 +159,7 @@ def main():
 
             tasks_dict[ep][st] = task_list
 
-    # Compute embeddings
-    print("💬 Computing embeddings...")
+    print("💬 Computing joint embeddings...")
     for ep in tqdm(range(num_episodes), desc="Embedding Episodes"):
         for st in range(num_steps):
             task_list = tasks_dict[ep][st]
@@ -149,14 +180,30 @@ def main():
             for t, e in zip(task_list, embs):
                 t["embedding"] = e
 
-    # Save into buffer
-    print("💾 Saving updated buffer...")
-    buffer.observations["tasks"] = tasks_dict
+    # Compute final embeddings based on goal_index
+    print("📦 Computing goal-based embeddings...")
+    embedding_size = matcher.model.config.projection_dim
+    color_index = {
+        "red": 0,
+        "green": 1,
+        "blue": 2,
+        "yellow": 3,
+        "white": 4
+    }
 
+    embeddings = compute_goal_embeddings(rgb, tasks_dict, goal_index, color_index, embedding_size)
+    next_embeddings = compute_goal_embeddings(next_rgb, tasks_dict, goal_index, color_index, embedding_size)
+
+    buffer.observations["embeddings"] = embeddings
+    buffer.observations["next_embeddings"] = next_embeddings
+    buffer.observations.pop("tasks", None)
+
+    # Save
+    print("💾 Saving final buffer with embeddings...")
     with OUTPUT_PKL.open("wb") as f:
         pickle.dump(buffer, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    print(f"✅ Done. New pickle with tasks saved to: {OUTPUT_PKL}")
+    print(f"✅ Done. Embeddings saved to: {OUTPUT_PKL}")
 
 if __name__ == "__main__":
     main()
