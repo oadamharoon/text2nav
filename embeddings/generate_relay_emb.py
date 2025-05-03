@@ -182,7 +182,7 @@ def main():
 
     # Compute final embeddings based on goal_index
     print("📦 Computing goal-based embeddings...")
-    embedding_size = matcher.model.config.projection_dim
+    embedding_size = 1152
     color_index = {
         "red": 0,
         "green": 1,
