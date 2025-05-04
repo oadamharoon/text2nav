@@ -178,7 +178,7 @@ def main():
                 prompts = ["No balls in frame, move around"]
                 embs = matcher.get_joint_embeddings(img_pil, prompts)
                 tasks_dict[ep][st] = [{
-                    "task": "move around",
+                    "task": prompts[0],
                     "location": None,
                     "colour": None,
                     "bbox": None,
