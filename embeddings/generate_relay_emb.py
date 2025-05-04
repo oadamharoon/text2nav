@@ -163,8 +163,6 @@ def main():
     for ep in tqdm(range(num_episodes), desc="Embedding Episodes"):
         for st in range(num_steps):
             task_list = tasks_dict[ep][st]
-            if not task_list:
-                continue
 
             img_np = rgb[ep, st]
             if isinstance(img_np, torch.Tensor):
@@ -174,11 +172,23 @@ def main():
                 img_np = img_np[..., :3]
 
             img_pil = Image.fromarray(img_np)
-            prompts = [t["task"] for t in task_list]
 
-            embs = matcher.get_joint_embeddings(img_pil, prompts)
-            for t, e in zip(task_list, embs):
-                t["embedding"] = e
+            if not task_list:
+                # No object in frame → Add "move around" task
+                prompts = ["No balls in frame, move around"]
+                embs = matcher.get_joint_embeddings(img_pil, prompts)
+                tasks_dict[ep][st] = [{
+                    "task": "move around",
+                    "location": None,
+                    "colour": None,
+                    "bbox": None,
+                    "embedding": embs[0]
+                }]
+            else:
+                prompts = [t["task"] for t in task_list]
+                embs = matcher.get_joint_embeddings(img_pil, prompts)
+                for t, e in zip(task_list, embs):
+                    t["embedding"] = e
 
     # Compute final embeddings based on goal_index
     print("📦 Computing goal-based embeddings...")
