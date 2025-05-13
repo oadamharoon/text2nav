@@ -2,6 +2,8 @@
 """
 Compute goal-based embeddings from replay buffer and save into a new pickle.
 Embeddings are generated from RGB frames and text tasks matched with goal_index.
+Compute goal-based embeddings from replay buffer and save into a new pickle.
+Embeddings are generated from RGB frames and text tasks matched with goal_index.
 """
 
 # import pickle
@@ -134,6 +136,9 @@ def main():
         print("❌ Missing required data in buffer: rgb, or goal_index.")
         return
 
+    rgb = buffer.observations["rgb"]
+    assert rgb.ndim == 5, "Expected (episodes, steps, channels, height, width)"
+
     num_episodes, num_steps = rgb.shape[0], rgb.shape[1]
     print(f"✅ Loaded buffer with {num_episodes} episodes, {num_steps} steps each.")
 
@@ -145,12 +150,15 @@ def main():
         tasks_dict[ep] = {}
         for st in range(num_steps):
             img_np = rgb[ep, st]
+            img_np = rgb[ep, st]
             if isinstance(img_np, torch.Tensor):
                 img_np = img_np.cpu().numpy()
+            img_np = img_np.transpose(1, 2, 0).astype(np.uint8)
             img_np = img_np.transpose(1, 2, 0).astype(np.uint8)
             if img_np.shape[-1] == 4:
                 img_np = img_np[..., :3]
 
+            _, detections = detect_balls(img_np)
             _, detections = detect_balls(img_np)
 
             task_list = []
@@ -166,6 +174,7 @@ def main():
             tasks_dict[ep][st] = task_list
 
     print("💬 Computing joint embeddings...")
+    print("💬 Computing joint embeddings...")
     for ep in tqdm(range(num_episodes), desc="Embedding Episodes"):
         for st in range(num_steps):
             task_list = tasks_dict[ep][st]
@@ -178,6 +187,23 @@ def main():
                 img_np = img_np[..., :3]
 
             img_pil = Image.fromarray(img_np)
+
+            if not task_list:
+                # No object in frame → Add "move around" task
+                prompts = ["No balls in frame, move around"]
+                embs = matcher.get_joint_embeddings(img_pil, prompts)
+                tasks_dict[ep][st] = [{
+                    "task": prompts[0],
+                    "location": None,
+                    "colour": None,
+                    "bbox": None,
+                    "embedding": embs[0]
+                }]
+            else:
+                prompts = [t["task"] for t in task_list]
+                embs = matcher.get_joint_embeddings(img_pil, prompts)
+                for t, e in zip(task_list, embs):
+                    t["embedding"] = e
 
             if not task_list:
                 # No object in frame → Add "move around" task

@@ -1,5 +1,7 @@
 # embedding_pipeline.py
 
+# embedding_pipeline.py
+
 from detector import ObjectDetector
 from prompt_generator import load_task_templates, generate_prompts
 from embedding_utils import BLIPMatcher, SigLIPMatcher
