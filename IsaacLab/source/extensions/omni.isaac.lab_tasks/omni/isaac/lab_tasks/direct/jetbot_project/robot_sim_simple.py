@@ -2,10 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-from __future__ import annotations
-from typing import Tuple
-
 import torch
 from collections.abc import Sequence
 import omni
@@ -28,15 +24,14 @@ from omni.isaac.core.utils.nucleus import get_assets_root_path
 import gymnasium as gym
 import numpy as np
 
-
 @configclass
 class JetbotCfg(DirectRLEnvCfg):
     # env
-    decimation = 1
+    decimation = 2
     episode_length_s = 20.0
     action_scale = 1.0
     state_space = 0
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 60, render_interval=decimation,
@@ -82,9 +77,11 @@ class JetbotCfg(DirectRLEnvCfg):
     )
 
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(len(joint_dof_name),))
-    observation_space = {"rgb": gym.spaces.Box(low=0, high=255, shape=(tiled_camera.height, tiled_camera.width, 3), dtype=np.uint8), 
-                         "poses": gym.spaces.Box(low=-20.00, high=20.0, shape=(6,), dtype=np.float32),
-                         "goal_index": gym.spaces.Discrete(5)}
+    # observation_space = {"rgb": gym.spaces.Box(low=0, high=255, shape=(tiled_camera.height, tiled_camera.width, 3), dtype=np.uint8), 
+    #                      "poses": gym.spaces.Box(low=-20.00, high=20.0, shape=(10,), dtype=np.float32),
+    #                      "goal_index": gym.spaces.Discrete(5)}
+
+    observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(10,), dtype=np.float32)
     
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=3, replicate_physics=True)
@@ -151,6 +148,7 @@ class JetbotEnv(DirectRLEnv):
 
         self.targets = []
         diffuse_colors = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 1.0, 0.0), (1.0, 0.0, 1.0)]
+        diffuse_colors = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 1.0, 0.0), (1.0, 0.0, 1.0)]
         init_y_poses = [0.0, 0.5, -0.5, 1.0, -1.0]
         for i in range(5):
             cube_cfg = RigidObjectCfg(
@@ -189,7 +187,8 @@ class JetbotEnv(DirectRLEnv):
         # Clamp and scale actions
         self.raw_actions = actions.clone()
         # print(f"Raw actions: {self.raw_actions}")
-        self.actions = torch.clamp(self.raw_actions, -1, 1) * 500 + self._robot.data.joint_pos[:, self._joint_dof_idx]
+        # print(f"Raw actions: {self.raw_actions}")
+        self.actions = torch.clamp(self.raw_actions, -1, 1) * 200 + self._robot.data.joint_pos[:, self._joint_dof_idx]
 
     def _apply_action(self) -> None:
         self._robot.set_joint_position_target(self.actions, joint_ids=self._joint_dof_idx)
@@ -206,11 +205,14 @@ class JetbotEnv(DirectRLEnv):
 
         self.goal_cube_position = all_target_positions[self.target_idx, env_ids]  - self.scene.env_origins
 
-        poses = torch.cat((self.robot_position, self.goal_cube_position), dim=1)
+        poses = torch.cat((self.robot_position, self._robot.data.root_quat_w, self.goal_cube_position), dim=1)
 
-        # Observations
-        obs = {"rgb":self.rgb_image.to(dtype=torch.float32), 'poses':poses.to(dtype=torch.float32), "goal_index":self.target_idx.to(dtype=torch.int16)}
+        _, angle = compute_goal_side(self.robot_position, self._robot.data.root_quat_w, self.goal_cube_position)
+
+        obs = poses.to(dtype=torch.float32)
         observations = {"policy": obs}
+        self.extras = {"rgb":self.rgb_image.to(dtype=torch.uint8), "goal_index":self.target_idx.to(dtype=torch.int16), "angle": angle.to(dtype=torch.float32)}
+        # print(f"Goal index: {self.target_idx}")
         return observations
     
 
@@ -274,7 +276,7 @@ class JetbotEnv(DirectRLEnv):
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         # Done if dis=stance to goal is greater than max distance or less than 0.1
         dis = torch.norm(self.robot_position - self.goal_cube_position, dim=1)
-        done = torch.logical_or(dis > self.cfg.max_distance_to_goal, dis < 0.1)
+        done = torch.logical_or(dis > self.cfg.max_distance_to_goal, dis < 0.2)
         # done if out of bounds
         done = torch.logical_or(done, self.robot_position[:, 0] > self.cfg.max_x)
         done = torch.logical_or(done, self.robot_position[:, 0] < self.cfg.min_x)
@@ -283,7 +285,7 @@ class JetbotEnv(DirectRLEnv):
         # if both time out and done, set done to true and time out to false
         done = torch.logical_or(done, time_out)
         # if both time out and done, set done to true and time out to false
-        time_out = torch.logical_and(done, time_out)
+        # time_out = torch.logical_and(done, time_out)
 
         return done, time_out
 
@@ -299,6 +301,21 @@ class JetbotEnv(DirectRLEnv):
         # Configure root state with environment offsets
         default_root_state = self._robot.data.default_root_state[env_ids].clone()
         default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_state[:, :3] += sample_uniform(
+            lower=torch.tensor([-0.1, -0.5, 0.0], device=self.device),
+            upper=torch.tensor([1.5, 0.5, 0.0], device=self.device),
+            size=(len(env_ids), 3),
+            device=self.device,
+        )
+
+        euler = sample_uniform(
+            lower=torch.tensor([0, 0, -np.pi], device=self.device),
+            upper=torch.tensor([0, 0, np.pi], device=self.device),
+            size=(len(env_ids), 3),
+            device=self.device,
+        )
+        quat = quat_from_euler_xyz_batch(euler).cpu().numpy()
+        default_root_state[:, 3:7] = torch.tensor(quat, device=self.device)
 
         # Update internal state buffers
         joint_vel = torch.zeros_like(joint_pos, device=self.device)

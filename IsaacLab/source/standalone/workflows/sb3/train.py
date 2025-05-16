@@ -90,7 +90,7 @@ import wandb
 
 run = wandb.init(
     project= "ME592",
-    name= "jetbot_sb3_v2",
+    name= "jetbot_sb3_changed_reward",
     sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
     monitor_gym=False,  # auto-upload the videos of agents playing the game
     save_code=False,  # optional

@@ -9,11 +9,11 @@ moviepy
 
 [all]
 robomimic@ git+https://github.com/ARISE-Initiative/robomimic.git
-rl-games==1.6.1
 stable-baselines3>=2.1
+gym
+rl-games==1.6.1
 skrl>=1.3.0
 rsl-rl-lib@ git+https://github.com/leggedrobotics/rsl_rl.git
-gym
 
 [rl-games]
 rl-games==1.6.1

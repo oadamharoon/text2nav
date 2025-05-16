@@ -22,8 +22,7 @@ class ObjectDetector:
     def __init__(self, threshold=30):
         self.threshold = threshold
 
-    def detect(self, image_path, top_n=None):
-        img = np.array(Image.open(image_path).convert("RGB"))
+    def detect(self, img, top_n=None):
         H, W = img.shape[:2]
         detections = []
 

@@ -2,11 +2,11 @@ seed: 42
 n_timesteps: !!float 2000000
 policy: 'MultiInputPolicy'
 batch_size: 512
-buffer_size: 100000
+buffer_size: 150000
 gamma: 0.99
 use_sde: False
 sde_sample_freq: 64
-learning_rate: !!float 3e-4  # Increased from 1e-6
+learning_rate: !!float 3e-4
 policy_kwargs: "dict(
             activation_fn=nn.ELU,
             net_arch=dict(pi=[256, 256], qf=[256, 256]),

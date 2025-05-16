@@ -22,8 +22,8 @@ class ObjectDetector:
     def __init__(self, threshold=30):
         self.threshold = threshold
 
-    def detect(self, image_path, top_n=None):
-        img = np.array(Image.open(image_path).convert("RGB"))
+    def detect(self, img, top_n=None):
+        # img = np.array(Image.open(image_path).convert("RGB"))
         H, W = img.shape[:2]
         detections = []
 
@@ -42,7 +42,8 @@ class ObjectDetector:
                 detections.append({
                     "bbox": (x, y, x+w, y+h),
                     "label": f"{location} {color_name} ball",
-                    "confidence": 1.0  # Dummy confidence
+                    "confidence": 1.0,  # Dummy confidence,
+                    "colour": color_name,
                 })
 
         if top_n is not None:

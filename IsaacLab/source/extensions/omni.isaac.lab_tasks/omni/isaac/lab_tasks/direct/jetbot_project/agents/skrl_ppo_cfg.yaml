@@ -9,83 +9,19 @@ models:
     max_log_std: 2.0
     initial_log_std: 0.0
     network:
-    - name: image_features
-      input: permute(STATES['rgb'], (0, 3, 1, 2))
-      layers:
-      - conv2d:
-          out_channels: 32
-          kernel_size: 8
-          stride: 4
-          padding: 0
-      - conv2d:
-          out_channels: 128
-          kernel_size: 4
-          stride: 2
-          padding: 0
-      - conv2d:
-          out_channels: 128
-          kernel_size: 3
-          stride: 1
-          padding: 0
-      - conv2d:
-          out_channels: 128
-          kernel_size: 3
-          stride: 1
-          padding: 0
-      - flatten
-      activations: elu
-    - name: joint_features
-      input: STATES['poses']
-      layers:
-      - 64
-      - 64
-      activations: elu
-    - name: combined
-      input: concatenate([image_features, joint_features])
-      layers:
-      - 512
-      activations: elu
+      - name: net
+        input: STATES
+        layers: [32, 32]
+        activations: elu
     output: ACTIONS
   value:
     class: DeterministicMixin
     clip_actions: false
     network:
-    - name: image_features
-      input: permute(STATES['rgb'], (0, 3, 1, 2))
-      layers:
-      - conv2d:
-          out_channels: 64
-          kernel_size: 8
-          stride: 4
-          padding: 0
-      - conv2d:
-          out_channels: 128
-          kernel_size: 4
-          stride: 2
-          padding: 0
-      - conv2d:
-          out_channels: 128
-          kernel_size: 3
-          stride: 1
-          padding: 0
-      - conv2d:
-          out_channels: 128
-          kernel_size: 3
-          stride: 1
-          padding: 0
-      - flatten
-      activations: elu
-    - name: joint_features
-      input: STATES['poses']
-      layers:
-      - 128
-      - 128
-      activations: elu
-    - name: combined
-      input: concatenate([image_features, joint_features])
-      layers:
-      - 256
-      activations: elu
+      - name: net
+        input: STATES
+        layers: [32, 32]
+        activations: elu
     output: ONE
 memory:
   class: RandomMemory
@@ -98,9 +34,9 @@ agent:
   discount_factor: 0.99
   lambda: 0.95
   learning_rate: 0.0003
-  learning_rate_scheduler: KLAdaptiveLR
-  learning_rate_scheduler_kwargs:
-    kl_threshold: 0.008
+  # learning_rate_scheduler: KLAdaptiveLR
+  # learning_rate_scheduler_kwargs:
+  #   kl_threshold: 0.008
   state_preprocessor: RunningStandardScaler
   state_preprocessor_kwargs:
     size: observation_space
@@ -127,8 +63,8 @@ agent:
     checkpoint_interval: 5000
     wandb: False
     wandb_kwargs:
-      project: "IsaacLab_Implementation"
-      name: "mybuddy_direct_reduced_fidelity"
+      project: "ME592"
+      name: "jetbot_ppo"
 trainer:
   class: SequentialTrainer
   timesteps: 400000

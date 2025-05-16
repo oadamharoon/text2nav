@@ -85,6 +85,8 @@ from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
 # config shortcuts
 algorithm = args_cli.algorithm.lower()
 
+from embeddings import EmbeddingPipeline
+embedd_pipeline = EmbeddingPipeline()
 
 def main():
     """Play with skrl agent."""
@@ -149,18 +151,62 @@ def main():
     runner.agent.set_running_mode("eval")
     dt = env.unwrapped.physics_dt
     # reset environment
-    obs, _ = env.reset()
+    obs, infos = env.reset()
     timestep = 0
     import time
     start_time = time.time()
-    # simulate environment
+    # from d3rlpy.algos import IQLConfig, TD3PlusBCConfig, SACConfig, BCConfig, CQLConfig
+    import numpy as np
+    import pickle
+    import sys
+    # import d3rlpy
+    # from d3rlpy.preprocessing import ActionScaler, MinMaxActionScaler
+
+    # encoder_factory = d3rlpy.models.VectorEncoderFactory(
+    #                         hidden_units=[2000, 2000],
+    #                         activation='relu',
+    #                     )
+    
+    # iql = CQLConfig(actor_encoder_factory=encoder_factory, critic_encoder_factory=encoder_factory).create(device="cuda:0")
+    # iql.create_impl(observation_shape=(1153,), action_size=2)
+    # model_data = torch.load("/home/nitesh/workspace/offline_rl_test/text2nav/cql_model_main_v2.pt")
+    # iql._impl.policy.load_state_dict(model_data['policy'])
+    replay_buffer = []
+    reward = np.zeros((1, 1), dtype=np.float32)
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
             # agent stepping
+            # Assuming `infos` is a dictionary where the values are PyTorch tensors on the GPU
+            infos = {key: value.cpu() if isinstance(value, torch.Tensor) else value for key, value in infos.items()}
+
+            current_obs = infos
+            rgb = current_obs["rgb"].cpu().numpy()
+            goal_index = current_obs["goal_index"].cpu()
+            angle = current_obs["angle"].cpu()
             actions = runner.agent.act(obs, timestep=0, timesteps=0)[0]
-            # env stepping
-            obs, _, _,_, _, _ = env.step(actions)
+            # print(f"Goal index: {goal_index}")
+            # # env stepping
+            # _, embedd_obs = embedd_pipeline.generate(rgb, goal_index)
+            # # # print(f"Embeddings: {embedd_obs}")
+            # actions = iql.sample_action(np.concatenate([np.array(embedd_obs), reward.reshape(-1, 1)], axis=1))
+            # # print(f"Actions: {actions}")
+            # actions = torch.tensor(actions).unsqueeze(0).to(env_cfg.device)
+            obs, reward, done, truncated, infos = env.step(actions)
+            reward = reward.cpu().numpy()
+            # print("Done: ", done)
+            # Assuming `infos` is a dictionary where the values are PyTorch tensors on the GPU
+            infos = {key: value.cpu() if isinstance(value, torch.Tensor) else value for key, value in infos.items()}
+
+            # store experience in replay buffer
+            # print(f"Done: {done}, \n Truncated: {truncated}")
+            replay_buffer.append((rgb, goal_index, angle, actions.cpu(), reward, done.cpu().numpy().astype(int), truncated.cpu().numpy().astype(int)))
+
+            print(f"Replay buffer size: {len(replay_buffer)}")
+            if len(replay_buffer) == 5000:
+                with open(f"/home/nitesh/workspace/offline_rl_test/text2nav/IsaacLab/replay_buffer.pkl", "wb") as f:
+                    pickle.dump(replay_buffer, f)
+                sys.exit(0)
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video

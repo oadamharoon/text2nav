@@ -5,6 +5,7 @@ Embeddings are generated from RGB frames and text tasks matched with goal_index.
 """
 
 # import pickle
+# import pickle
 import pickle
 from pathlib import Path
 import numpy as np
@@ -13,6 +14,7 @@ import cv2
 from tqdm import tqdm
 from PIL import Image
 from transformers import SiglipProcessor, SiglipModel
+import requests
 import requests
 
 # ---------------------------------------------------------------------
@@ -53,6 +55,7 @@ def compute_goal_embeddings(rgb_array, tasks_dict, goal_index, color_index, embe
 
 def main():
     matcher = SigLIPMatcher()
+    matcher = SigLIPMatcher()
     print("🚀 Loading replay buffer...")
     with INPUT_PKL.open("rb") as f:
         buffer = pickle.load(f)
@@ -81,8 +84,6 @@ def main():
     for ep in tqdm(range(num_episodes), desc="Embedding Episodes"):
         for st in range(num_steps):
             task_list = tasks_dict[ep][st]
-            if not task_list:
-                continue
 
             img_np = rgb[ep, st]
             if isinstance(img_np, torch.Tensor):
@@ -92,11 +93,40 @@ def main():
                 img_np = img_np[..., :3]
 
             img_pil = Image.fromarray(img_np)
-            prompts = [t["task"] for t in task_list]
 
-            embs = matcher.get_joint_embeddings(img_pil, prompts)
-            for t, e in zip(task_list, embs):
-                t["embedding"] = e
+            if not task_list:
+                # No object in frame → Add "move around" task
+                prompts = ["No balls in frame, move around"]
+                embs = matcher.get_joint_embeddings(img_pil, prompts)
+                tasks_dict[ep][st] = [{
+                    "task": prompts[0],
+                    "location": None,
+                    "colour": None,
+                    "bbox": None,
+                    "embedding": embs[0]
+                }]
+            else:
+                prompts = [t["task"] for t in task_list]
+                embs = matcher.get_joint_embeddings(img_pil, prompts)
+                for t, e in zip(task_list, embs):
+                    t["embedding"] = e
+
+            if not task_list:
+                # No object in frame → Add "move around" task
+                prompts = ["No balls in frame, move around"]
+                embs = matcher.get_joint_embeddings(img_pil, prompts)
+                tasks_dict[ep][st] = [{
+                    "task": prompts[0],
+                    "location": None,
+                    "colour": None,
+                    "bbox": None,
+                    "embedding": embs[0]
+                }]
+            else:
+                prompts = [t["task"] for t in task_list]
+                embs = matcher.get_joint_embeddings(img_pil, prompts)
+                for t, e in zip(task_list, embs):
+                    t["embedding"] = e
 
     # Compute final embeddings based on goal_index
     print("📦 Computing goal-based embeddings...")
@@ -122,7 +152,9 @@ def main():
     print("💾 Saving final buffer with embeddings...")
     with OUTPUT_PKL.open("wb") as f:
         pickle.dump(buffer_with_embeddings, f, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(buffer_with_embeddings, f, protocol=pickle.HIGHEST_PROTOCOL)
 
+    print(f"✅ Done. Embeddings saved to: {OUTPUT_PKL}")
     print(f"✅ Done. Embeddings saved to: {OUTPUT_PKL}")
 
 if __name__ == "__main__":
