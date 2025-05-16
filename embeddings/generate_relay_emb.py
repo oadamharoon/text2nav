@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Compute `tasks_dict` from replay buffer and save it into a new pickle.
-Each task is mapped properly to (episode, step) frame.
+Compute goal-based embeddings from replay buffer and save into a new pickle.
+Embeddings are generated from RGB frames and text tasks matched with goal_index.
 """
 
+# import pickle
 import pickle
 from pathlib import Path
 import numpy as np
@@ -12,48 +13,13 @@ import cv2
 from tqdm import tqdm
 from PIL import Image
 from transformers import SiglipProcessor, SiglipModel
+import requests
 
 # ---------------------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------------------
-INPUT_PKL  = Path("/work/mech-ai-scratch/shreyang/me592/text2nav/embeddings/data/replay_buffer.pkl")
-OUTPUT_PKL = INPUT_PKL.parent / "replay_buffer_with_tasks.pkl"
-
-# ---------------------------------------------------------------------
-# Helper Functionsss
-# ---------------------------------------------------------------------
-def grid_cell(cx, cy, W, H):
-    col = "left"   if cx <  W/3 else "centre" if cx < 2*W/3 else "right"
-    row = "top"    if cy <  H/3 else "middle" if cy < 2*H/3 else "bottom"
-    return (f"{row}-{col}"
-            .replace("middle-centre", "centre")
-            .replace("middle-", "")
-            .replace("-centre", ""))
-
-def detect_balls(img, threshold=30):
-    COLOR_CENTRES = {
-        'blue'  : np.array([5,   5, 192]),
-        'yellow': np.array([212,212, 22]),
-        'green' : np.array([22, 214, 21]),
-        'red'   : np.array([196, 15, 13])
-    }
-    out  = img.copy()
-    H, W = img.shape[:2]
-    dets = []
-
-    for colour, centre in COLOR_CENTRES.items():
-        lo = np.clip(centre - threshold, 0, 255)
-        hi = np.clip(centre + threshold, 0, 255)
-        mask = cv2.inRange(img, lo, hi)
-        cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for c in cnts:
-            x, y, w, h = cv2.boundingRect(c)
-            if w * h < 10:
-                continue
-            cx, cy = x + w//2, y + h//2
-            dets.append((colour, (x, y, w, h), grid_cell(cx, cy, W, H)))
-
-    return out, dets
+INPUT_PKL  = Path("/work/mech-ai-scratch/nitesh/workspace/text2nav/replay_buffer_5.pkl")
+OUTPUT_PKL = INPUT_PKL.parent / "replay_buffer_with_embeddings_5.pkl"
 
 class SigLIPMatcher:
     def __init__(self, ckpt="google/siglip-so400m-patch14-384", device=None):
@@ -78,57 +44,40 @@ class SigLIPMatcher:
         joint = self._l2(img_feat + txt_feat)
         return joint.cpu().numpy().copy()
 
+def compute_goal_embeddings(rgb_array, tasks_dict, goal_index, color_index, embedding_size):
+    pass
+
 # ---------------------------------------------------------------------
 # Main Script
 # ---------------------------------------------------------------------
 
 def main():
+    matcher = SigLIPMatcher()
     print("🚀 Loading replay buffer...")
     with INPUT_PKL.open("rb") as f:
         buffer = pickle.load(f)
 
-    if not (hasattr(buffer, "observations") and isinstance(buffer.observations, dict)):
-        print("❌ Buffer does not have a dict-like 'observations' field!")
-        return
+    # test_limit = 1
+    print(f"Buffer size: {len(buffer.buffer)}")
+    
+    observations = np.array([experience[0] for experience in buffer.buffer])#[:test_limi
+    actions = np.array([experience[1] for experience in buffer.buffer])#[:test_limit]
+    rewards = np.array([experience[2] for experience in buffer.buffer])#[:test_limit]
+    # next_observations = np.array([experience[3] for experience in buffer.buffer])#[:test_limit]
+    dones = np.array([experience[4] for experience in buffer.buffer])#[:test_limit]
 
-    rgb = buffer.observations["rgb"]
-    assert rgb.ndim == 5, "Expected (episodes, steps, channels, height, width)"
+    rgb = np.array([obs['rgb'] for obs in observations]).transpose(0, 1, 4, 2, 3)  # (episodes, steps, channels, height, width)
+    # next_rgb = np.array([obs['rgb'] for obs in next_observations]).transpose(0, 1, 4, 2, 3)  # (episodes, steps, channels, height, width)
+    goal_index = np.array([obs['goal_index'] for obs in observations])  # (episodes, steps, 1)
+
+    if rgb is None or goal_index is None:
+        print("❌ Missing required data in buffer: rgb, next_rgb or goal_index.")
+        return
 
     num_episodes, num_steps = rgb.shape[0], rgb.shape[1]
     print(f"✅ Loaded buffer with {num_episodes} episodes, {num_steps} steps each.")
 
-    matcher = SigLIPMatcher()
-
-    tasks_dict = {}
-
-    print("🔍 Detecting balls and computing tasks...")
-    for ep in tqdm(range(num_episodes), desc="Episodes"):
-        tasks_dict[ep] = {}
-        for st in range(num_steps):
-            img_np = rgb[ep, st]  # (3, 256, 256)
-            if isinstance(img_np, torch.Tensor):
-                img_np = img_np.cpu().numpy()
-            img_np = img_np.transpose(1, 2, 0).astype(np.uint8)  # (H, W, C)
-
-            if img_np.shape[-1] == 4:
-                img_np = img_np[..., :3]
-
-            drawn_img, detections = detect_balls(img_np)
-
-            task_list = []
-            for colour, bbox, loc in detections:
-                task_text = f"move to the {loc} {colour} ball"
-                task_list.append({
-                    "task": task_text,
-                    "location": loc,
-                    "colour": colour,
-                    "bbox": bbox
-                })
-
-            tasks_dict[ep][st] = task_list
-
-    # Compute embeddings
-    print("💬 Computing embeddings...")
+    print("💬 Computing joint embeddings...")
     for ep in tqdm(range(num_episodes), desc="Embedding Episodes"):
         for st in range(num_steps):
             task_list = tasks_dict[ep][st]
@@ -149,14 +98,32 @@ def main():
             for t, e in zip(task_list, embs):
                 t["embedding"] = e
 
-    # Save into buffer
-    print("💾 Saving updated buffer...")
-    buffer.observations["tasks"] = tasks_dict
+    # Compute final embeddings based on goal_index
+    print("📦 Computing goal-based embeddings...")
+    embedding_size = matcher.model.config.text_config.projection_size
+    print(f"Embedding size: {embedding_size}")
+    color_index = {
+        "red": 0,
+        "green": 1,
+        "blue": 2,
+        "yellow": 3,
+        "magenta": 4
+    }
 
+    embeddings = compute_goal_embeddings(rgb, tasks_dict, goal_index, color_index, embedding_size)
+
+    buffer_with_embeddings = []
+    buffer_with_embeddings.append(embeddings)
+    buffer_with_embeddings.append(actions)
+    buffer_with_embeddings.append(rewards)
+    buffer_with_embeddings.append(dones)
+
+    # Save
+    print("💾 Saving final buffer with embeddings...")
     with OUTPUT_PKL.open("wb") as f:
-        pickle.dump(buffer, f, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(buffer_with_embeddings, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    print(f"✅ Done. New pickle with tasks saved to: {OUTPUT_PKL}")
+    print(f"✅ Done. Embeddings saved to: {OUTPUT_PKL}")
 
 if __name__ == "__main__":
     main()
