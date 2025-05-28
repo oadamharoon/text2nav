@@ -1,24 +1,33 @@
-from .detector import ObjectDetector
-from .prompt_generator import load_task_templates, generate_prompts
-from .embedding_utils import BLIPMatcher, SigLIPMatcher
+# embedding_pipeline.py
+
+from .embedding_utils import SigLIPMatcher
 from PIL import Image
-import os, warnings
-from transformers.utils import logging as hf_logging
+import argparse
+import torch
 
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", category=FutureWarning)
-os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
-hf_logging.set_verbosity_error()
+COLOR_INDEX = {
+    "red": 0,
+    "green": 1,
+    "blue": 2,
+    "yellow": 3,
+    "pink": 4
+}
 
-def run_pipeline(image, matcher_type="siglip", top_n=5):
-    detector = ObjectDetector()
-    detections = detector.detect(image, top_n=top_n)
+INDEX_COLOR = {v: k for k, v in COLOR_INDEX.items()}
 
-    template = load_task_templates("task_templates.json", key="nav_task")
-    prompts = generate_prompts(detections, template)
+class EmbeddingPipeline:
+    def __init__(self, matcher_type="siglip"):
+        self.matcher = SigLIPMatcher()
 
-    image = Image.fromarray(image).convert("RGB")
-    matcher = SigLIPMatcher() if matcher_type == "siglip" else BLIPMatcher()
-    embeddings = matcher.get_joint_embeddings(image, prompts)
-
-    return prompts, embeddings
+    def generate(self, image: torch.tensor, prompts):
+        """
+        Generate joint embeddings for the given image and goal index.
+        Args:
+            image (torch.tensor): Input image tensor. (N, 3, 256, 256)
+            goal_index (torch.tensor): Index of the goal color.
+        Returns:
+            embeddings (torch.tensor): Tensor of joint embeddings.
+        """
+        # prompts = [f"Move towards {INDEX_COLOR[int(idx)]} ball" for idx in goal_index]
+        embeddings = self.matcher.get_joint_embeddings(image, prompts)
+        return embeddings

@@ -5,6 +5,7 @@ from prompt_generator import load_task_templates, generate_prompts
 from embedding_utils import BLIPMatcher, SigLIPMatcher
 from PIL import Image
 import argparse
+import torch
 
 COLOR_INDEX = {
     "red": 0,
@@ -15,35 +16,39 @@ COLOR_INDEX = {
 }
 
 class EmbeddingPipeline:
-    def __init__(self, matcher_type="siglip", task_template_path="/home/nitesh/workspace/offline_rl_test/text2nav/IsaacLab/source/standalone/workflows/skrl/task_templates.json", task_key="nav_task", top_n=5):
-        self.detector = ObjectDetector()
-        self.matcher = SigLIPMatcher() if matcher_type == "siglip" else BLIPMatcher()
-        self.template = load_task_templates(task_template_path, key=task_key)
-        self.top_n = top_n
+    def __init__(self):
+        self.matcher = SigLIPMatcher()
 
-    def generate(self, image, goal_index=None):
-        detections = self.detector.detect(image, top_n=self.top_n)
-        prompts = generate_prompts(detections, self.template)
+    def generate(self, image: torch.tensor, prompts):
+        """
+        Generate joint embeddings for the given image and goal index.
+        Args:
+            image (torch.tensor): Input image tensor. (N, 3, 256, 256)
+            goal_index (torch.tensor): Index of the goal color.
+        Returns:
+            embeddings (torch.tensor): Tensor of joint embeddings.
+        """
+        # prompts = [f"Move towards {INDEX_COLOR[int(idx)]} ball" for idx in goal_index]
         embeddings = self.matcher.get_joint_embeddings(image, prompts)
+        return embeddings
 
-        if goal_index is not None:
-            filtered_prompts = []
-            filtered_embeddings = []
-            for i, d in enumerate(detections):
-                color = d.get("colour", "").lower()
-                if COLOR_INDEX.get(color) == goal_index:
-                    print(f"Selected goal: {color} ball")
-                    filtered_prompts.append(prompts[i])
-                    filtered_embeddings.append(embeddings[i])
-            prompts = filtered_prompts
-            embeddings = filtered_embeddings
+def generate_relative_prompts(y, goal_index, INDEX_COLOR, y_thresh=0.5, base="Move toward the ball."):
+    """
+    goal_vec_robot: (B, 3) tensor, goal vector in robot frame
+    y_thresh: float, threshold for deciding clear left/right
+    Returns: List of strings (prompts)
+    """
+    prompts = []
+
+    for i in range(len(y)):
+        if y[i] > y_thresh:
+            prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is to your left. {base}")
+        elif y[i] < -y_thresh:
+            prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is to your right. {base}")
+        else:
+            prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is straight ahead. {base}")
     
-        if len(embeddings) == 0:
-            print(f"Selected Goal: {[k for k, v in COLOR_INDEX.items() if v == goal_index][0]} not in frame! Moving around... ")
-            prompts = ["No balls in frame, move around"]
-            embeddings = [self.matcher.get_joint_embeddings(image, prompts)[0]]
-        return prompts, embeddings
-    
+    return prompts   
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

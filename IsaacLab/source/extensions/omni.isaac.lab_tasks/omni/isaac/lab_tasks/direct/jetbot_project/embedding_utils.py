@@ -30,12 +30,10 @@ class SigLIPMatcher:
     def _l2(self, x):
         return x / x.norm(dim=-1, keepdim=True).clamp(min=1e-6)
 
-    def get_joint_embeddings(self, image: Image.Image, prompts: list[str]):
-        if not prompts:
-            return []
-        img_inp = self.processor(images=image, return_tensors="pt").to(self.device)
+    def get_joint_embeddings(self, images, prompts):
+        img_inp = self.processor(images=images, return_tensors="pt").to(self.device)
         img_feat = self._l2(self.model.get_image_features(**img_inp))
         txt_inp = self.processor(text=prompts, return_tensors="pt", padding=True).to(self.device)
         txt_feat = self._l2(self.model.get_text_features(**txt_inp))
         joint = self._l2(img_feat + txt_feat)
-        return joint.cpu().numpy()
+        return joint

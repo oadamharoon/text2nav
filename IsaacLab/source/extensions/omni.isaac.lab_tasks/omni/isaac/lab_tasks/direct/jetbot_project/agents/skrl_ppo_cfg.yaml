@@ -61,10 +61,10 @@ agent:
     experiment_name: ""
     write_interval: 100
     checkpoint_interval: 5000
-    wandb: False
+    wandb: True
     wandb_kwargs:
       project: "ME592"
-      name: "jetbot_ppo"
+      name: "BC_eval"
 trainer:
   class: SequentialTrainer
   timesteps: 400000

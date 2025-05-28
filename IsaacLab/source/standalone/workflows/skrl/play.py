@@ -85,7 +85,7 @@ from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
 # config shortcuts
 algorithm = args_cli.algorithm.lower()
 
-from embeddings import EmbeddingPipeline
+from embeddings import EmbeddingPipeline, generate_relative_prompts
 embedd_pipeline = EmbeddingPipeline()
 
 def main():
@@ -155,24 +155,36 @@ def main():
     timestep = 0
     import time
     start_time = time.time()
-    # from d3rlpy.algos import IQLConfig, TD3PlusBCConfig, SACConfig, BCConfig, CQLConfig
+    from d3rlpy.algos import IQLConfig, TD3PlusBCConfig, SACConfig, BCConfig, CQLConfig
     import numpy as np
-    import pickle
     import sys
-    # import d3rlpy
     # from d3rlpy.preprocessing import ActionScaler, MinMaxActionScaler
 
-    # encoder_factory = d3rlpy.models.VectorEncoderFactory(
-    #                         hidden_units=[2000, 2000],
-    #                         activation='relu',
-    #                     )
-    
-    # iql = CQLConfig(actor_encoder_factory=encoder_factory, critic_encoder_factory=encoder_factory).create(device="cuda:0")
-    # iql.create_impl(observation_shape=(1153,), action_size=2)
-    # model_data = torch.load("/home/nitesh/workspace/offline_rl_test/text2nav/cql_model_main_v2.pt")
-    # iql._impl.policy.load_state_dict(model_data['policy'])
+    import d3rlpy
+    encoder_factory = d3rlpy.models.VectorEncoderFactory(
+            hidden_units=[1024, 512, 256, 128, 64],
+            activation='relu',
+        )
+
+
+
+    bc = TD3PlusBCConfig(actor_encoder_factory=encoder_factory, critic_encoder_factory=encoder_factory).create(device="cuda:0")
+    bc.create_impl(observation_shape=(1152,), action_size=2)
+    # bc.load_model("/home/nitesh/Downloads/bc_model.pt")
+    model_data = torch.load("/home/nitesh/Downloads/td3_bc_model_v2.pt")
+
+    bc._impl.policy.load_state_dict(model_data["policy"])
     replay_buffer = []
     reward = np.zeros((1, 1), dtype=np.float32)
+
+    COLOR_INDEX = {
+        "red": 0,
+        "green": 1,
+        "blue": 2,
+        "yellow": 3,
+        "pink": 4
+        }
+    INDEX_COLOR = {v: k for k, v in COLOR_INDEX.items()}
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
@@ -184,14 +196,15 @@ def main():
             rgb = current_obs["rgb"].cpu().numpy()
             goal_index = current_obs["goal_index"].cpu()
             angle = current_obs["angle"].cpu()
-            actions = runner.agent.act(obs, timestep=0, timesteps=0)[0]
+            # actions = runner.agent.act(obs, timestep=0, timesteps=0)[0]
             # print(f"Goal index: {goal_index}")
-            # # env stepping
-            # _, embedd_obs = embedd_pipeline.generate(rgb, goal_index)
+            # env stepping
+            prompts = generate_relative_prompts(angle, goal_index, INDEX_COLOR)
+            embedd_obs = embedd_pipeline.generate(rgb, prompts)
             # # # print(f"Embeddings: {embedd_obs}")
-            # actions = iql.sample_action(np.concatenate([np.array(embedd_obs), reward.reshape(-1, 1)], axis=1))
+            actions = bc.sample_action(np.array(embedd_obs))
             # # print(f"Actions: {actions}")
-            # actions = torch.tensor(actions).unsqueeze(0).to(env_cfg.device)
+            actions = torch.tensor(actions).unsqueeze(0).to("cuda:0")
             obs, reward, done, truncated, infos = env.step(actions)
             reward = reward.cpu().numpy()
             # print("Done: ", done)
@@ -200,13 +213,13 @@ def main():
 
             # store experience in replay buffer
             # print(f"Done: {done}, \n Truncated: {truncated}")
-            replay_buffer.append((rgb, goal_index, angle, actions.cpu(), reward, done.cpu().numpy().astype(int), truncated.cpu().numpy().astype(int)))
+            # replay_buffer.append((rgb, goal_index, angle, actions.cpu(), reward, done.cpu().numpy().astype(int), truncated.cpu().numpy().astype(int)))
 
-            print(f"Replay buffer size: {len(replay_buffer)}")
-            if len(replay_buffer) == 5000:
-                with open(f"/home/nitesh/workspace/offline_rl_test/text2nav/IsaacLab/replay_buffer.pkl", "wb") as f:
-                    pickle.dump(replay_buffer, f)
-                sys.exit(0)
+            # print(f"Replay buffer size: {len(replay_buffer)}")
+            # if len(replay_buffer) == 5000:
+            #     with open(f"/home/nitesh/workspace/offline_rl_test/text2nav/IsaacLab/replay_buffer.pkl", "wb") as f:
+            #         pickle.dump(replay_buffer, f)
+            #     sys.exit(0)
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video
