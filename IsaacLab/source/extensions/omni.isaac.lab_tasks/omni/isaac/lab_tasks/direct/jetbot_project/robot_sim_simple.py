@@ -17,7 +17,7 @@ from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_
 from omni.isaac.lab.utils import configclass
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core import PhysicsContext
-from omni.isaac.lab.utils.math import sample_uniform, quat_from_euler_xyz
+from omni.isaac.lab.utils.math import sample_uniform
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 
@@ -52,9 +52,6 @@ class JetbotCfg(DirectRLEnvCfg):
                                     )
     # robot
     assets_root_path = get_assets_root_path()
-    assert assets_root_path, "Nucleus path not found. Please set up Nucleus server and add the path to the nucleus server in the config file."
-
-
     robot_cfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Fancy_Robot",
         spawn=sim_utils.UsdFileCfg(
@@ -134,11 +131,7 @@ class JetbotEnv(DirectRLEnv):
         self.rl_model = BCConfig().create(device="cuda:0")
         self.rl_model.create_impl(observation_shape=(1152,), action_size=2)
         model_data = torch.load("/home/nitesh/Downloads/bc_model.pt")
-<<<<<<< HEAD:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim.py
-        self.rl_model._impl.policy.load_state_dict(model_data["imitator"]) # type: ignore
-=======
         self.rl_model._impl.policy.load_state_dict(model_data["imitator"])
->>>>>>> 7a888548dd8652a05f500d039d96e3aac187a989:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim_simple.py
         self.embedd_pipe = EmbeddingPipeline()
 
         self.success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
@@ -187,7 +180,7 @@ class JetbotEnv(DirectRLEnv):
         for i in range(5):
             cube_cfg = RigidObjectCfg(
                 prim_path=f"/World/envs/env_.*/Goal_{i}",
-                spawn=sim_utils.SphereCfg(radius=0.0075,
+                spawn=sim_utils.SphereCfg(radius=0.075,
                                         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=diffuse_colors[i]),
                                         rigid_props=sim_utils.RigidBodyPropertiesCfg(
                                             disable_gravity=True,
@@ -196,12 +189,6 @@ class JetbotEnv(DirectRLEnv):
                                         init_state=RigidObjectCfg.InitialStateCfg(pos=(2.5, init_y_poses[i], 0.1)))
             
             self.targets.append(RigidObject(cube_cfg))
-        
-        euler = torch.tensor([0.0, 0.0, 135.0], device=self.device)
-        quat = quat_from_euler_xyz(*euler).cpu().numpy()
-        chair_cfg = sim_utils.UsdFileCfg(
-                usd_path=self.cfg.assets_root_path + "/Isaac/Environments/Office/Props/SM_Chair.usd", scale=(0.5, 0.5, 0.5)) # type: ignore
-        chair_cfg.func("/World/envs/env_.*/Chair", chair_cfg, translation=(2.5, 0.0, 0.0), orientation=(quat[0], quat[1], quat[2], quat[3]))
 
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=[])
@@ -221,15 +208,6 @@ class JetbotEnv(DirectRLEnv):
                                         device=self.device)
         
 
-<<<<<<< HEAD:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim.py
-        # self.csv_path = "/home/nitesh/workspace/offline_rl_test/text2nav/IsaacLab/extras_with_bc.csv"
-        # os.makedirs(os.path.dirname(self.csv_path), exist_ok=True)
-        # # If CSV file doesn't exist, write the header
-        # if not os.path.exists(self.csv_path):
-        #     with open(self.csv_path, "w", newline="") as f:
-        #         writer = csv.writer(f)
-        #         writer.writerow(["Success", "Timesteps"])
-=======
         self.csv_path = "/home/nitesh/workspace/offline_rl_test/text2nav/IsaacLab/extras_with_bc.csv"
         os.makedirs(os.path.dirname(self.csv_path), exist_ok=True)
         # If CSV file doesn't exist, write the header
@@ -237,7 +215,6 @@ class JetbotEnv(DirectRLEnv):
             with open(self.csv_path, "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(["Success", "Timesteps"])
->>>>>>> 7a888548dd8652a05f500d039d96e3aac187a989:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim_simple.py
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         # Clamp and scale actions
@@ -252,10 +229,6 @@ class JetbotEnv(DirectRLEnv):
         actions = self.rl_model.sample_action(embedds.cpu().numpy())
         actions = torch.tensor(actions).unsqueeze(0).to(device=self.device)
         actions = torch.clamp(actions, -1, 1) * 200 + self._robot.data.joint_pos[:, self._joint_dof_idx]
-<<<<<<< HEAD:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim.py
-        # print(f"Actions: {actions}")
-=======
->>>>>>> 7a888548dd8652a05f500d039d96e3aac187a989:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim_simple.py
         self._robot.set_joint_position_target(actions, joint_ids=self._joint_dof_idx)
     
     def _get_observations(self) -> dict:
@@ -331,11 +304,7 @@ class JetbotEnv(DirectRLEnv):
         dis = torch.norm(self.robot_position - self.goal_cube_position, dim=1)
         done = torch.logical_or(dis > self.cfg.max_distance_to_goal, dis < 0.3)
         self.success = dis < 0.3
-<<<<<<< HEAD:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim.py
-        # print(f"Success: {self.success}")
-=======
         print(f"Success: {self.success}")
->>>>>>> 7a888548dd8652a05f500d039d96e3aac187a989:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim_simple.py
         # done if out of bounds
         done = torch.logical_or(done, self.robot_position[:, 0] > self.cfg.max_x)
         done = torch.logical_or(done, self.robot_position[:, 0] < self.cfg.min_x)
@@ -349,7 +318,7 @@ class JetbotEnv(DirectRLEnv):
         return done, time_out
 
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, env_ids: Sequence[int] | None):
         # Handle default environment indices
         if env_ids is None:
             env_ids = self._robot._ALL_INDICES
@@ -388,26 +357,9 @@ class JetbotEnv(DirectRLEnv):
                                                     high=len(self.targets),
                                                     size=(len(env_ids),),
                                                     device=self.device)
-        print(f"Target index: {self.target_idx}")
         # self.target_idx = torch.ones_like(self.target_idx) * 3
 
         # Convert to NumPy (no flatten!)
-<<<<<<< HEAD:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim.py
-        # self.success = self.success.float()
-        # success_np = self.success.detach().cpu().numpy()
-        # timestep_np = self.timesteps.cpu().numpy()
-
-
-        # # Loop over each env and write a row per env
-        # with open(self.csv_path, "a", newline="") as f:
-        #     writer = csv.writer(f)
-        #     for i in range(len(env_ids)):
-        #         print(success_np)
-        #         print(timestep_np)
-        #         row = [success_np[i].tolist()] + [timestep_np[i].tolist()]
-        #         print(f"Writing row: {row}")
-        #         writer.writerow(row)
-=======
         self.success = self.success.float()
         success_np = self.success.detach().cpu().numpy()
         timestep_np = self.timesteps.cpu().numpy()
@@ -422,17 +374,12 @@ class JetbotEnv(DirectRLEnv):
                 row = [success_np[i].tolist()] + [timestep_np[i].tolist()]
                 print(f"Writing row: {row}")
                 writer.writerow(row)
->>>>>>> 7a888548dd8652a05f500d039d96e3aac187a989:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim_simple.py
 
         self.timesteps = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
 
 
 
-<<<<<<< HEAD:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim.py
-def generate_relative_prompts(y, goal_index, INDEX_COLOR, y_thresh=0.2, base="Move towards the chair."):
-=======
 def generate_relative_prompts(y, goal_index, INDEX_COLOR, y_thresh=0.2, base="Move toward the ball."):
->>>>>>> 7a888548dd8652a05f500d039d96e3aac187a989:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim_simple.py
     """
     goal_vec_robot: (B, 3) tensor, goal vector in robot frame
     y_thresh: float, threshold for deciding clear left/right
@@ -440,23 +387,6 @@ def generate_relative_prompts(y, goal_index, INDEX_COLOR, y_thresh=0.2, base="Mo
     """
     prompts = []
 
-<<<<<<< HEAD:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim.py
-    # for i in range(len(y)):
-    #     if y[i] > y_thresh:
-    #         prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is to your left. {base}")
-    #     elif y[i] < -y_thresh:
-    #         prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is to your right. {base}")
-    #     else:
-    #         prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is straight ahead. {base}")
-
-    for i in range(len(y)):
-        if y[i] > y_thresh:
-            prompts.append(f"The target is chair which is to your left. {base}")
-        elif y[i] < -y_thresh:
-            prompts.append(f"The target is chair which is to your right. {base}")
-        else:
-            prompts.append(f"The target is chair which is straight ahead. {base}")
-=======
     for i in range(len(y)):
         if y[i] > y_thresh:
             prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is to your left. {base}")
@@ -464,7 +394,6 @@ def generate_relative_prompts(y, goal_index, INDEX_COLOR, y_thresh=0.2, base="Mo
             prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is to your right. {base}")
         else:
             prompts.append(f"The target is {INDEX_COLOR[int(goal_index[i])]} ball which is straight ahead. {base}")
->>>>>>> 7a888548dd8652a05f500d039d96e3aac187a989:IsaacLab/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/jetbot_project/robot_sim_simple.py
     
     return prompts
 
@@ -571,5 +500,4 @@ def quaternion_to_direction(quaternions):
     direction = direction / torch.norm(direction, dim=1, keepdim=True)
     
     return direction
-
 
