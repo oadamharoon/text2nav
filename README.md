@@ -1,7 +1,7 @@
 # text2nav
 
 [![arXiv](https://img.shields.io/badge/arXiv-2506.14507-b31b1b.svg)](https://arxiv.org/abs/2506.14507)
-[![RSS 2025](https://img.shields.io/badge/RSS%202025-Workshop-blue)](https://roboticsconference.org/)
+[![RSS 2025](https://img.shields.io/badge/RSS%202025-Workshop-blue)](https://sites.google.com/brown.edu/fm4roboplan/home)
 [![Python](https://img.shields.io/badge/Python-76.3%25-blue)](https://github.com/oadamharoon/text2nav)
 [![Jupyter](https://img.shields.io/badge/Jupyter%20Notebook-22.7%25-orange)](https://github.com/oadamharoon/text2nav)
 
@@ -163,7 +163,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🔗 Links
 
 - [Paper (arXiv)](https://arxiv.org/abs/2506.14507)
-- [RSS 2025 Workshop](https://roboticsconference.org/)
+- [RSS 2025 Workshop](https://sites.google.com/brown.edu/fm4roboplan/home)
 - [Iowa State University](https://www.iastate.edu/)
 
 ---
