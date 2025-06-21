@@ -91,11 +91,6 @@ jupyter notebook generate_embeddings.ipynb
 python train_offline.py --model siglip --embedding_dim 1152 --batch_size 32
 ```
 
-### 4. Evaluate Policy
-```bash
-jupyter notebook habitat_test.ipynb
-```
-
 ## 📊 Results
 
 | Model | Success Rate (%) | Avg Steps | Efficiency |
