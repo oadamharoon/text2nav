@@ -3,6 +3,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2506.14507-b31b1b.svg)](https://arxiv.org/abs/2506.14507)
 [![RSS 2025](https://img.shields.io/badge/RSS%202025-Workshop-blue)](https://roboticsconference.org/)
 [![Python](https://img.shields.io/badge/Python-76.3%25-blue)](https://github.com/oadamharoon/text2nav)
+[![Jupyter](https://img.shields.io/badge/Jupyter%20Notebook-22.7%25-orange)](https://github.com/oadamharoon/text2nav)
 
 **Can Pretrained Vision-Language Embeddings Alone Guide Robot Navigation?**
 
