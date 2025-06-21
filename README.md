@@ -57,6 +57,7 @@ pip install gymnasium
 
 ```
 text2nav/
+├── README.md              # This documentation
 ├── CITATION.cff           # Citation information
 ├── LICENSE                # MIT License
 ├── IsaacLab/              # Isaac Lab simulation environment setup
