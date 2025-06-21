@@ -152,8 +152,8 @@ This work is funded by NSF-USDA COALESCE grant #2021-67021-34418. Special thanks
 - [Shreyan Ganguly](https://github.com/tre3x) (Iowa State University)
 - [Samuel T.K. Tetteh](https://github.com/samtett) (Iowa State University)
 - [Prajwal Koirala](https://github.com/prajwalkoirala) (Iowa State University)
-- [Cody Fleming](https://github.com/codyfleming) (Iowa State University)
-- [Soumik Sarkar](https://github.com/soumiks) (Iowa State University)
+- [Cody Fleming](https://scholar.google.com/citations?user=Pefc1GgAAAAJ&hl=en) (Iowa State University)
+- [Soumik Sarkar](https://scholar.google.com/citations?user=-rmRjqIAAAAJ&hl=en) (Iowa State University)
 
 *Equal contribution
 
