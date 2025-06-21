@@ -163,7 +163,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🔗 Links
 
 - [Paper (arXiv)](https://arxiv.org/abs/2506.14507)
-- [RSS 2025 Workshop](https://sites.google.com/brown.edu/fm4roboplan/home)
+- [RSS 2025 FM4RoboPlan Workshop](https://sites.google.com/brown.edu/fm4roboplan/home)
 - [Iowa State University](https://www.iastate.edu/)
 
 ---
