@@ -57,14 +57,16 @@ pip install gymnasium
 
 ```
 text2nav/
+├── CITATION.cff           # Citation information
+├── LICENSE                # MIT License
 ├── IsaacLab/              # Isaac Lab simulation environment setup
 ├── embeddings/            # Vision-language embedding generation
 ├── rl/                    # Reinforcement learning expert training
 ├── generate_embeddings.ipynb    # Generate VLM embeddings from demonstrations
 ├── revised_gen_embed.ipynb      # Revised embedding generation
 ├── train_offline.py             # Behavioral cloning training script
-├── offlin_train.py             # Alternative offline training
-├── bc_model.pt                 # Trained behavioral cloning model
+├── offlin_train.py              # Alternative offline training
+├── bc_model.pt                  # Trained behavioral cloning model
 ├── td3_bc_model.pt            # TD3+BC baseline model
 ├── habitat_test.ipynb         # Testing and evaluation notebook
 └── replay_buffer.py           # Data handling utilities
